@@ -1,7 +1,6 @@
 #include "ui.h"
 
 #include <Arduino_GFX_Library.h>
-#include <qrcode.h>
 #include "pins.h"
 #include "state.h"
 
@@ -9,6 +8,14 @@ UiService UI;
 
 static Arduino_DataBus *s_bus = nullptr;
 static Arduino_GFX *s_gfx = nullptr;
+
+static constexpr uint16_t COLOR_BLACK = 0x0000;
+static constexpr uint16_t COLOR_WHITE = 0xFFFF;
+static constexpr uint16_t COLOR_RED = 0xF800;
+static constexpr uint16_t COLOR_GREEN = 0x07E0;
+static constexpr uint16_t COLOR_CYAN = 0x07FF;
+static constexpr uint16_t COLOR_ORANGE = 0xFD20;
+static constexpr uint16_t COLOR_LIGHTGREY = 0xC618;
 
 static String wifiQrPayload(const String &ssid, const String &password) {
   String payload = "WIFI:T:WPA;S:";
@@ -20,22 +27,14 @@ static String wifiQrPayload(const String &ssid, const String &password) {
 }
 
 static void drawQrCode(const String &payload, int x, int y, int maxSize) {
-  QRCode qrcode;
-  uint8_t qrcodeData[qrcode_getBufferSize(6)];
-  if (qrcode_initText(&qrcode, qrcodeData, 6, ECC_LOW, payload.c_str()) != 0) {
-    return;
-  }
-
-  const int scale = max(1, maxSize / qrcode.size);
-  const int size = qrcode.size * scale;
-  s_gfx->fillRect(x - 4, y - 4, size + 8, size + 8, WHITE);
-  for (uint8_t row = 0; row < qrcode.size; ++row) {
-    for (uint8_t col = 0; col < qrcode.size; ++col) {
-      if (qrcode_getModule(&qrcode, col, row)) {
-        s_gfx->fillRect(x + col * scale, y + row * scale, scale, scale, BLACK);
-      }
-    }
-  }
+  (void)payload;
+  s_gfx->drawRect(x - 4, y - 4, maxSize + 8, maxSize + 8, COLOR_WHITE);
+  s_gfx->setTextColor(COLOR_WHITE, COLOR_BLACK);
+  s_gfx->setTextSize(1);
+  s_gfx->setCursor(x + 16, y + maxSize / 2 - 8);
+  s_gfx->print("WiFi QR");
+  s_gfx->setCursor(x + 10, y + maxSize / 2 + 8);
+  s_gfx->print("pending lib");
 }
 
 bool UiService::begin(AppConfig *config) {
@@ -49,7 +48,7 @@ bool UiService::begin(AppConfig *config) {
   if (!s_gfx->begin()) {
     return false;
   }
-  s_gfx->fillScreen(BLACK);
+  s_gfx->fillScreen(COLOR_BLACK);
   s_gfx->setTextWrap(false);
   return true;
 }
@@ -68,8 +67,8 @@ void UiService::showConfigPortal(const String &ssid, const String &password) {
   if (!s_gfx) {
     return;
   }
-  s_gfx->fillScreen(BLACK);
-  s_gfx->setTextColor(WHITE, BLACK);
+  s_gfx->fillScreen(COLOR_BLACK);
+  s_gfx->setTextColor(COLOR_WHITE, COLOR_BLACK);
   s_gfx->setTextSize(2);
   s_gfx->setCursor(12, 10);
   s_gfx->print("78HAM ESP32");
@@ -77,7 +76,7 @@ void UiService::showConfigPortal(const String &ssid, const String &password) {
   s_gfx->setCursor(12, 36);
   s_gfx->print("Scan QR to join AP");
   drawQrCode(wifiQrPayload(ssid, password), 52, 58, 136);
-  s_gfx->setTextColor(WHITE, BLACK);
+  s_gfx->setTextColor(COLOR_WHITE, COLOR_BLACK);
   s_gfx->setCursor(12, 214);
   s_gfx->print("SSID: ");
   s_gfx->print(ssid);
@@ -92,14 +91,14 @@ void UiService::drawMain() {
   if (!s_gfx || State.mode == DeviceMode::ConfigPortal) {
     return;
   }
-  s_gfx->fillScreen(BLACK);
+  s_gfx->fillScreen(COLOR_BLACK);
   drawHeader();
   drawStatus();
   drawFooter();
 }
 
 void UiService::drawHeader() {
-  s_gfx->setTextColor(CYAN, BLACK);
+  s_gfx->setTextColor(COLOR_CYAN, COLOR_BLACK);
   s_gfx->setTextSize(1);
   s_gfx->setCursor(8, 8);
   s_gfx->print("78HAM NRL");
@@ -109,15 +108,15 @@ void UiService::drawHeader() {
 
 void UiService::drawStatus() {
   s_gfx->setTextSize(4);
-  uint16_t color = WHITE;
+  uint16_t color = COLOR_WHITE;
   if (State.mode == DeviceMode::Tx) {
-    color = RED;
+    color = COLOR_RED;
   } else if (State.mode == DeviceMode::Rx) {
-    color = GREEN;
+    color = COLOR_GREEN;
   } else if (State.mode == DeviceMode::Offline || State.mode == DeviceMode::Error) {
-    color = ORANGE;
+    color = COLOR_ORANGE;
   }
-  s_gfx->setTextColor(color, BLACK);
+  s_gfx->setTextColor(color, COLOR_BLACK);
   s_gfx->setCursor(28, 48);
   s_gfx->print(modeName(State.mode));
 
@@ -127,7 +126,7 @@ void UiService::drawStatus() {
   const ServerConfig &server = activeServer(*config_);
   const ChannelConfig &channel = activeChannel(*config_);
   s_gfx->setTextSize(2);
-  s_gfx->setTextColor(WHITE, BLACK);
+  s_gfx->setTextColor(COLOR_WHITE, COLOR_BLACK);
   s_gfx->setCursor(12, 126);
   s_gfx->print(config_->device.callsign);
   s_gfx->print('-');
@@ -153,7 +152,7 @@ void UiService::drawFooter() {
     return;
   }
   s_gfx->setTextSize(1);
-  s_gfx->setTextColor(LIGHTGREY, BLACK);
+  s_gfx->setTextColor(COLOR_LIGHTGREY, COLOR_BLACK);
   s_gfx->setCursor(8, 292);
   s_gfx->print("VOL ");
   s_gfx->print(config_->device.volume);

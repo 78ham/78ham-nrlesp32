@@ -4,7 +4,7 @@
 #include <lwip/sockets.h>
 #include "state.h"
 
-NetworkService Network;
+NetworkService NrlNetwork;
 
 bool NetworkService::begin(AppConfig *config) {
   config_ = config;
@@ -70,10 +70,10 @@ bool NetworkService::ensureUdp() {
     }
     udp_.stop();
     State.udpReady = udp_.begin(server.localPort) == 1;
-    if (State.udpReady) {
-      int tos = kUdpVoiceTos;
-      udp_.setOption(IPPROTO_IP, IP_TOS, &tos, sizeof(tos));
-    }
+    // Arduino's WiFiUDP does not expose a stable socket-option API across
+    // ESP32 core versions. Native NRL-ESP32 marks UDP with IP_TOS=0xC0; this
+    // Arduino port keeps the constant documented and skips it until a raw
+    // socket backend is added.
     serverResolved_ = State.udpReady;
   }
   return State.udpReady;

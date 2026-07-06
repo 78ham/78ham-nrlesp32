@@ -35,4 +35,4 @@ private:
   Nrl21Codec codec_;
 };
 
-extern NetworkService Network;
+extern NetworkService NrlNetwork;

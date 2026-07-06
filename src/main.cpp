@@ -36,8 +36,8 @@ void setup() {
   UI.begin(&g_config);
   Keys.begin();
   Keys.setHandler(handleKey);
-  Network.begin(&g_config);
-  Network.setVoiceHandler(handleVoicePacket);
+  NrlNetwork.begin(&g_config);
+  NrlNetwork.setVoiceHandler(handleVoicePacket);
 
   if (!isConfigUsable(g_config)) {
     enterConfigPortal();
@@ -67,7 +67,7 @@ void loop() {
     return;
   }
 
-  Network.loop();
+  NrlNetwork.loop();
   UI.loop();
   delay(5);
 }
@@ -76,7 +76,7 @@ static void enterConfigPortal() {
   if (g_configPortalActive) {
     return;
   }
-  Network.stop();
+  NrlNetwork.stop();
   g_configPortalActive = true;
   State.mode = DeviceMode::ConfigPortal;
   UI.showConfigPortal(g_apSsid, g_apPassword);
@@ -85,7 +85,7 @@ static void enterConfigPortal() {
 
 static bool startRuntime() {
   State.mode = DeviceMode::Connecting;
-  if (!Network.connectWifi()) {
+  if (!NrlNetwork.connectWifi()) {
     return false;
   }
 
@@ -154,7 +154,7 @@ static void switchChannel(int delta) {
   }
   g_config.currentChannel = static_cast<size_t>(next);
   ChannelConfig &channel = activeChannel(g_config);
-  Network.sendChannelSwitch(channel.groupId);
+  NrlNetwork.sendChannelSwitch(channel.groupId);
   Storage.save(g_config);
 }
 

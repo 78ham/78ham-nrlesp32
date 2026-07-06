@@ -182,7 +182,7 @@ void AudioService::txTask() {
     if (ptt_) {
       int len = encodeFrame(pcm, opus, sizeof(opus));
       if (len > 0) {
-        Network.sendVoiceOpus(opus, len);
+        NrlNetwork.sendVoiceOpus(opus, len);
       }
     }
   }
