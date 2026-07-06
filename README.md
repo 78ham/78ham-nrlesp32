@@ -42,6 +42,7 @@ On first boot, or when WiFi/server configuration is missing, the device enters A
 
 - AP SSID: `78HAM-ESP32-XXXXXX`, generated from the ESP32 MAC suffix
 - AP password: 10 random readable characters, generated once and stored
+- TFT shows a WiFi QR code for joining the AP
 - Config URL: `http://192.168.4.1/`
 
 After saving valid WiFi, callsign, server, and channel settings, the device connects to WiFi and enters the main screen.

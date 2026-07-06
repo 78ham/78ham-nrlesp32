@@ -10,7 +10,7 @@ Avoid ESP32-S3 pins used by USB, flash, PSRAM, boot strapping, or board-specific
 
 1. Serial boot log.
 2. ST7789V display init and backlight.
-3. AP portal display and web form.
+3. AP portal display, WiFi QR code, and web form.
 4. WiFi station connection.
 5. NRL2 Type 2 heartbeat to UDP port 60050.
 6. MAX98357A 16 kHz playback test.

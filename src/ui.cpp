@@ -1,6 +1,7 @@
 #include "ui.h"
 
 #include <Arduino_GFX_Library.h>
+#include <qrcode.h>
 #include "pins.h"
 #include "state.h"
 
@@ -8,6 +9,34 @@ UiService UI;
 
 static Arduino_DataBus *s_bus = nullptr;
 static Arduino_GFX *s_gfx = nullptr;
+
+static String wifiQrPayload(const String &ssid, const String &password) {
+  String payload = "WIFI:T:WPA;S:";
+  payload += ssid;
+  payload += ";P:";
+  payload += password;
+  payload += ";;";
+  return payload;
+}
+
+static void drawQrCode(const String &payload, int x, int y, int maxSize) {
+  QRCode qrcode;
+  uint8_t qrcodeData[qrcode_getBufferSize(6)];
+  if (qrcode_initText(&qrcode, qrcodeData, 6, ECC_LOW, payload.c_str()) != 0) {
+    return;
+  }
+
+  const int scale = max(1, maxSize / qrcode.size);
+  const int size = qrcode.size * scale;
+  s_gfx->fillRect(x - 4, y - 4, size + 8, size + 8, WHITE);
+  for (uint8_t row = 0; row < qrcode.size; ++row) {
+    for (uint8_t col = 0; col < qrcode.size; ++col) {
+      if (qrcode_getModule(&qrcode, col, row)) {
+        s_gfx->fillRect(x + col * scale, y + row * scale, scale, scale, BLACK);
+      }
+    }
+  }
+}
 
 bool UiService::begin(AppConfig *config) {
   config_ = config;
@@ -40,18 +69,20 @@ void UiService::showConfigPortal(const String &ssid, const String &password) {
   s_gfx->fillScreen(BLACK);
   s_gfx->setTextColor(WHITE, BLACK);
   s_gfx->setTextSize(2);
-  s_gfx->setCursor(12, 20);
+  s_gfx->setCursor(12, 10);
   s_gfx->print("78HAM ESP32");
   s_gfx->setTextSize(1);
-  s_gfx->setCursor(12, 64);
-  s_gfx->print("Config AP");
-  s_gfx->setCursor(12, 92);
+  s_gfx->setCursor(12, 36);
+  s_gfx->print("Scan QR to join AP");
+  drawQrCode(wifiQrPayload(ssid, password), 52, 58, 136);
+  s_gfx->setTextColor(WHITE, BLACK);
+  s_gfx->setCursor(12, 214);
   s_gfx->print("SSID: ");
   s_gfx->print(ssid);
-  s_gfx->setCursor(12, 116);
+  s_gfx->setCursor(12, 238);
   s_gfx->print("PASS: ");
   s_gfx->print(password);
-  s_gfx->setCursor(12, 148);
+  s_gfx->setCursor(12, 268);
   s_gfx->print("Open 192.168.4.1");
 }
 
