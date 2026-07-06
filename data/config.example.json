@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "device": {
+    "callsign": "NOCALL",
+    "ssid": 1,
+    "dev_model": 22,
+    "volume": 70,
+    "mic_gain": 100,
+    "voice_codec": "opus"
+  },
+  "wifi": {
+    "ssid": "",
+    "password": ""
+  },
+  "servers": [
+    {
+      "name": "Main",
+      "host": "101.133.166.204",
+      "port": 60050,
+      "local_port": 60050,
+      "channels": [
+        { "name": "Local", "group_id": 1 },
+        { "name": "999", "group_id": 999 }
+      ]
+    }
+  ],
+  "current_server": 0,
+  "current_channel": 0
+}
