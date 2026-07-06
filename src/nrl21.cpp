@@ -49,7 +49,12 @@ bool Nrl21Codec::parse(const uint8_t *data, size_t len, NrlPacketView &view) con
     return false;
   }
   uint16_t declaredLen = (static_cast<uint16_t>(data[4]) << 8) | data[5];
-  if (declaredLen < kNrlHeaderSize || declaredLen > len) {
+  if (declaredLen > len || declaredLen < kNrlHeaderSize) {
+    return false;
+  }
+  // Some older senders leave the header length at 48 while still appending a
+  // payload. Trust the UDP datagram length in that compatibility case.
+  if (declaredLen == kNrlHeaderSize && len > kNrlHeaderSize) {
     declaredLen = len;
   }
   view.type = data[20];

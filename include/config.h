@@ -22,9 +22,13 @@ static constexpr int kOpusSampleRate = 16000;
 static constexpr int kOpusChannels = 1;
 static constexpr int kOpusFrameMs = 20;
 static constexpr int kOpusFrameSamples = kOpusSampleRate * kOpusFrameMs / 1000;
-static constexpr int kOpusMaxPacketBytes = 256;
+static constexpr int kOpusMaxPacketBytes = 640;
 static constexpr int kOpusBitrate = 20000;
 static constexpr int kOpusComplexity = 4;
+static constexpr int kNrlPacketMaxBytes = kNrlHeaderSize + kOpusMaxPacketBytes;
+static constexpr uint8_t kWifiFallbackFailureThreshold = 3;
+static constexpr uint32_t kWifiRetryBackoffMs = 30000;
+static constexpr uint8_t kUdpVoiceTos = 0xC0;
 
 static constexpr size_t kMaxServers = 3;
 static constexpr size_t kMaxChannelsPerServer = 32;

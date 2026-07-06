@@ -190,10 +190,10 @@ void AudioService::txTask() {
 
 void AudioService::rxTask() {
   RxOpusFrame frame;
-  int16_t pcm[kOpusFrameSamples];
+  int16_t pcm[kOpusFrameSamples * 3];
   for (;;) {
     if (xQueueReceive(rxQueue_, &frame, portMAX_DELAY) == pdTRUE) {
-      int samples = decodeFrame(frame.data, frame.len, pcm, kOpusFrameSamples);
+      int samples = decodeFrame(frame.data, frame.len, pcm, kOpusFrameSamples * 3);
       if (samples > 0) {
         size_t bytesWritten = 0;
         i2s_write(I2S_NUM_1, pcm, samples * sizeof(int16_t), &bytesWritten, portMAX_DELAY);

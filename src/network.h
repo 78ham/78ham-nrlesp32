@@ -19,6 +19,7 @@ public:
 
 private:
   bool ensureUdp();
+  bool resolveServer();
   void sendHeartbeatIfDue();
   void receivePackets();
   bool sendPacket(uint8_t type, const uint8_t *payload, size_t len);
@@ -27,6 +28,8 @@ private:
   WiFiUDP udp_;
   IPAddress serverIp_;
   bool serverResolved_ = false;
+  uint8_t wifiFailures_ = 0;
+  uint32_t nextWifiRetryMs_ = 0;
   uint32_t lastHeartbeatMs_ = 0;
   VoicePacketHandler voiceHandler_ = nullptr;
   Nrl21Codec codec_;

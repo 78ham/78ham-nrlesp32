@@ -1,6 +1,7 @@
 #include "network.h"
 
 #include <WiFi.h>
+#include <lwip/sockets.h>
 #include "state.h"
 
 NetworkService Network;
@@ -12,6 +13,10 @@ bool NetworkService::begin(AppConfig *config) {
 
 bool NetworkService::connectWifi() {
   if (!config_) {
+    return false;
+  }
+  uint32_t now = millis();
+  if (nextWifiRetryMs_ != 0 && static_cast<int32_t>(now - nextWifiRetryMs_) < 0) {
     return false;
   }
   State.mode = DeviceMode::Connecting;
@@ -26,14 +31,30 @@ bool NetworkService::connectWifi() {
 
   State.wifiConnected = WiFi.status() == WL_CONNECTED;
   if (State.wifiConnected) {
+    wifiFailures_ = 0;
+    nextWifiRetryMs_ = 0;
     State.ip = WiFi.localIP();
     State.rssi = WiFi.RSSI();
     strlcpy(State.statusText, "WiFi connected", sizeof(State.statusText));
   } else {
+    if (wifiFailures_ < 0xFF) {
+      ++wifiFailures_;
+    }
+    nextWifiRetryMs_ = millis() + kWifiRetryBackoffMs;
     State.mode = DeviceMode::Offline;
     strlcpy(State.statusText, "WiFi failed", sizeof(State.statusText));
   }
   return State.wifiConnected;
+}
+
+bool NetworkService::resolveServer() {
+  ServerConfig &server = activeServer(*config_);
+  IPAddress literal;
+  if (literal.fromString(server.host)) {
+    serverIp_ = literal;
+    return true;
+  }
+  return WiFi.hostByName(server.host, serverIp_) == 1;
 }
 
 bool NetworkService::ensureUdp() {
@@ -41,14 +62,18 @@ bool NetworkService::ensureUdp() {
     return false;
   }
 
-  ServerConfig &server = activeServer(*config_);
   if (!serverResolved_) {
-    if (!WiFi.hostByName(server.host, serverIp_)) {
+    ServerConfig &server = activeServer(*config_);
+    if (!resolveServer()) {
       State.udpReady = false;
       return false;
     }
     udp_.stop();
     State.udpReady = udp_.begin(server.localPort) == 1;
+    if (State.udpReady) {
+      int tos = kUdpVoiceTos;
+      udp_.setOption(IPPROTO_IP, IP_TOS, &tos, sizeof(tos));
+    }
     serverResolved_ = State.udpReady;
   }
   return State.udpReady;
@@ -83,7 +108,7 @@ bool NetworkService::sendPacket(uint8_t type, const uint8_t *payload, size_t len
   if (!config_ || !ensureUdp()) {
     return false;
   }
-  uint8_t packet[kNrlHeaderSize + kOpusMaxPacketBytes];
+  uint8_t packet[kNrlPacketMaxBytes];
   if (len > kOpusMaxPacketBytes) {
     return false;
   }
