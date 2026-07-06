@@ -3,12 +3,14 @@
 // Update these pins to match your PCB before first hardware bring-up.
 
 // ST7789V 240x320 SPI TFT
+// 7-pin panel silkscreen: CS DC RST SDA SCK VC GND
+// This panel has no separate backlight pin; VC powers the backlight.
 static constexpr int PIN_TFT_SCLK = 12;
 static constexpr int PIN_TFT_MOSI = 11;
 static constexpr int PIN_TFT_CS = 10;
 static constexpr int PIN_TFT_DC = 9;
 static constexpr int PIN_TFT_RST = 8;
-static constexpr int PIN_TFT_BL = 7;
+static constexpr int PIN_TFT_BL = -1;
 
 // INMP441 I2S microphone
 static constexpr int PIN_MIC_BCLK = 4;

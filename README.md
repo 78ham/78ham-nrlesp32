@@ -24,6 +24,10 @@ Install PlatformIO, then run:
 pio run
 ```
 
+## Wiring
+
+See [docs/wiring.md](docs/wiring.md) for the current ST7789V screen wiring.
+
 Upload filesystem defaults, if needed:
 
 ```powershell

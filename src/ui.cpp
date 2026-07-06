@@ -40,8 +40,10 @@ static void drawQrCode(const String &payload, int x, int y, int maxSize) {
 
 bool UiService::begin(AppConfig *config) {
   config_ = config;
-  pinMode(PIN_TFT_BL, OUTPUT);
-  digitalWrite(PIN_TFT_BL, HIGH);
+  if (PIN_TFT_BL >= 0) {
+    pinMode(PIN_TFT_BL, OUTPUT);
+    digitalWrite(PIN_TFT_BL, HIGH);
+  }
   s_bus = new Arduino_HWSPI(PIN_TFT_DC, PIN_TFT_CS, PIN_TFT_SCLK, PIN_TFT_MOSI);
   s_gfx = new Arduino_ST7789(s_bus, PIN_TFT_RST, 0, true, 240, 320);
   if (!s_gfx->begin()) {
