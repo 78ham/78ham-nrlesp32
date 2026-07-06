@@ -1,7 +1,5 @@
-// Arduino IDE compatibility entry.
+// Arduino IDE compatibility sketch.
 //
-// The primary project format is PlatformIO, where the real firmware entry lives
-// in src/main.cpp. This wrapper lets Arduino IDE users open the sketch folder
-// and still build the same code path.
-
-#include "src/main.cpp"
+// The real firmware entry is src/main.cpp. Arduino IDE compiles source files
+// under src/ automatically, so this file intentionally stays empty to avoid
+// compiling main.cpp twice.

@@ -2,6 +2,14 @@
 
 #include <Arduino.h>
 
+#ifndef NRL_FIRMWARE_NAME
+#define NRL_FIRMWARE_NAME "78ham-nrlesp32"
+#endif
+
+#ifndef NRL_FIRMWARE_VERSION
+#define NRL_FIRMWARE_VERSION "0.1.0-dev"
+#endif
+
 static constexpr const char *kFirmwareName = NRL_FIRMWARE_NAME;
 static constexpr const char *kFirmwareVersion = NRL_FIRMWARE_VERSION;
 
