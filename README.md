@@ -71,6 +71,7 @@ See [data/config.example.json](data/config.example.json).
 
 ## Source Layout
 
+- `78ham-nrlesp32.ino` is a small Arduino IDE compatibility wrapper.
 - `src/main.cpp` wires boot, config portal, WiFi, audio, keys, and UI together.
 - `src/network.*` handles WiFi, UDP, NRL2 heartbeat, Type 8 voice, and Type 7 channel switching.
 - `src/audio.*` handles INMP441/MAX98357A I2S and Opus encode/decode.
