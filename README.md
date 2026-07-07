@@ -2,6 +2,10 @@
 
 Open-source ESP32-S3 network radio terminal for NRLLink.
 
+中文文档见 [README.zh-CN.md](README.zh-CN.md)。
+
+The main firmware target is now native ESP-IDF, following the upstream `NRL-ESP32` architecture more closely than the initial Arduino prototype.
+
 Target hardware:
 
 - ESP32-S3-N16R8
@@ -16,7 +20,27 @@ The first firmware milestone focuses on pure network voice: WiFi, local AP web c
 
 This repository is an early project skeleton. The code is organized as a long-term open-source firmware project, with hardware pins and protocol defaults kept in `include/pins.h` and `include/config.h`.
 
-## Build
+## Build With ESP-IDF
+
+Open an ESP-IDF PowerShell environment, then run:
+
+```powershell
+cd C:\Users\Admin\Documents\GitHub\78ham-nrlesp32
+idf.py set-target esp32s3
+idf.py build
+```
+
+Flash and monitor:
+
+```powershell
+idf.py -p COMx flash monitor
+```
+
+## Legacy Arduino / PlatformIO
+
+The initial Arduino/PlatformIO prototype is still present for reference, but ESP-IDF is the primary path from now on.
+
+PlatformIO legacy build:
 
 Install PlatformIO, then run:
 
