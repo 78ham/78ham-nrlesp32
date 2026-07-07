@@ -25,8 +25,8 @@ void display_init(void)
 
     esp_lcd_panel_io_handle_t io = nullptr;
     esp_lcd_panel_io_spi_config_t io_cfg = {};
-    io_cfg.dc_gpio_num = PIN_TFT_DC;
-    io_cfg.cs_gpio_num = PIN_TFT_CS;
+    io_cfg.dc_gpio_num = static_cast<gpio_num_t>(PIN_TFT_DC);
+    io_cfg.cs_gpio_num = static_cast<gpio_num_t>(PIN_TFT_CS);
     io_cfg.pclk_hz = 40 * 1000 * 1000;
     io_cfg.lcd_cmd_bits = 8;
     io_cfg.lcd_param_bits = 8;
@@ -35,7 +35,7 @@ void display_init(void)
     ESP_ERROR_CHECK(esp_lcd_new_panel_io_spi(SPI2_HOST, &io_cfg, &io));
 
     esp_lcd_panel_dev_config_t panel_cfg = {};
-    panel_cfg.reset_gpio_num = PIN_TFT_RST;
+    panel_cfg.reset_gpio_num = static_cast<gpio_num_t>(PIN_TFT_RST);
     panel_cfg.rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB;
     panel_cfg.bits_per_pixel = 16;
     ESP_ERROR_CHECK(esp_lcd_new_panel_st7789(io, &panel_cfg, &s_panel));
