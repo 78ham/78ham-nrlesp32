@@ -58,7 +58,7 @@ bool UiService::begin(AppConfig *config) {
     digitalWrite(PIN_TFT_BL, HIGH);
   }
   s_bus = new Arduino_HWSPI(PIN_TFT_DC, PIN_TFT_CS, PIN_TFT_SCLK, PIN_TFT_MOSI);
-  s_gfx = new Arduino_ST7789(s_bus, PIN_TFT_RST, 0, true, 240, 320);
+  s_gfx = new Arduino_ST7789(s_bus, PIN_TFT_RST, 1, true, 320, 240);
   if (!s_gfx->begin()) {
     return false;
   }
@@ -84,20 +84,21 @@ void UiService::showConfigPortal(const String &ssid, const String &password) {
   s_gfx->fillScreen(COLOR_BLACK);
   s_gfx->setTextColor(COLOR_WHITE, COLOR_BLACK);
   s_gfx->setTextSize(2);
-  s_gfx->setCursor(12, 10);
+  s_gfx->setCursor(10, 4);
   s_gfx->print("78HAM ESP32");
   s_gfx->setTextSize(1);
-  s_gfx->setCursor(12, 36);
+  s_gfx->setCursor(10, 26);
   s_gfx->print("Scan QR to join AP");
-  drawQrCode(wifiQrPayload(ssid, password), 52, 58, 136);
+  drawQrCode(wifiQrPayload(ssid, password), 8, 42, 100);
   s_gfx->setTextColor(COLOR_WHITE, COLOR_BLACK);
-  s_gfx->setCursor(12, 214);
+  s_gfx->setTextSize(1);
+  s_gfx->setCursor(120, 50);
   s_gfx->print("SSID: ");
   s_gfx->print(ssid);
-  s_gfx->setCursor(12, 238);
+  s_gfx->setCursor(120, 74);
   s_gfx->print("PASS: ");
   s_gfx->print(password);
-  s_gfx->setCursor(12, 268);
+  s_gfx->setCursor(120, 98);
   s_gfx->print("Open 192.168.4.1");
 }
 
@@ -114,14 +115,14 @@ void UiService::drawMain() {
 void UiService::drawHeader() {
   s_gfx->setTextColor(COLOR_CYAN, COLOR_BLACK);
   s_gfx->setTextSize(1);
-  s_gfx->setCursor(8, 8);
+  s_gfx->setCursor(4, 4);
   s_gfx->print("78HAM NRL");
-  s_gfx->setCursor(150, 8);
+  s_gfx->setCursor(250, 4);
   s_gfx->print(State.wifiConnected ? "WiFi" : "NO WIFI");
 }
 
 void UiService::drawStatus() {
-  s_gfx->setTextSize(4);
+  s_gfx->setTextSize(3);
   uint16_t color = COLOR_WHITE;
   if (State.mode == DeviceMode::Tx) {
     color = COLOR_RED;
@@ -131,7 +132,7 @@ void UiService::drawStatus() {
     color = COLOR_ORANGE;
   }
   s_gfx->setTextColor(color, COLOR_BLACK);
-  s_gfx->setCursor(28, 48);
+  s_gfx->setCursor(100, 22);
   s_gfx->print(modeName(State.mode));
 
   if (!config_) {
@@ -139,21 +140,32 @@ void UiService::drawStatus() {
   }
   const ServerConfig &server = activeServer(*config_);
   const ChannelConfig &channel = activeChannel(*config_);
+
   s_gfx->setTextSize(2);
   s_gfx->setTextColor(COLOR_WHITE, COLOR_BLACK);
-  s_gfx->setCursor(12, 126);
+
+  s_gfx->setCursor(4, 58);
   s_gfx->print(config_->device.callsign);
   s_gfx->print('-');
   s_gfx->print(config_->device.ssid);
-  s_gfx->setCursor(12, 158);
+
+  s_gfx->setCursor(4, 82);
   s_gfx->print(server.name);
-  s_gfx->setCursor(12, 190);
+  if (config_->serverCount > 1) {
+    s_gfx->print(" [");
+    s_gfx->print(config_->currentServer + 1);
+    s_gfx->print("/");
+    s_gfx->print(config_->serverCount);
+    s_gfx->print("]");
+  }
+
+  s_gfx->setCursor(4, 106);
   s_gfx->print(channel.name);
   s_gfx->print(" #");
   s_gfx->print(channel.groupId);
 
   if (State.remoteCallsign[0]) {
-    s_gfx->setCursor(12, 222);
+    s_gfx->setCursor(4, 132);
     s_gfx->print("RX ");
     s_gfx->print(State.remoteCallsign);
     s_gfx->print('-');
@@ -167,11 +179,11 @@ void UiService::drawFooter() {
   }
   s_gfx->setTextSize(1);
   s_gfx->setTextColor(COLOR_LIGHTGREY, COLOR_BLACK);
-  s_gfx->setCursor(8, 292);
+  s_gfx->setCursor(4, 218);
   s_gfx->print("VOL ");
   s_gfx->print(config_->device.volume);
-  s_gfx->print(" RSSI ");
+  s_gfx->print("  RSSI ");
   s_gfx->print(State.rssi);
-  s_gfx->setCursor(8, 306);
+  s_gfx->print("  ");
   s_gfx->print(State.ip);
 }

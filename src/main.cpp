@@ -168,6 +168,25 @@ static void switchChannel(int delta) {
   Storage.save(g_config);
 }
 
+static void switchServer(int delta) {
+  if (g_config.serverCount <= 1) {
+    return;
+  }
+  int next = static_cast<int>(g_config.currentServer) + delta;
+  if (next < 0) {
+    next = static_cast<int>(g_config.serverCount) - 1;
+  }
+  if (next >= static_cast<int>(g_config.serverCount)) {
+    next = 0;
+  }
+  g_config.currentServer = static_cast<size_t>(next);
+  g_config.currentChannel = 0;
+  NrlNetwork.resetUdp();
+  ChannelConfig &channel = activeChannel(g_config);
+  NrlNetwork.sendChannelSwitch(channel.groupId);
+  Storage.save(g_config);
+}
+
 static void handleVoicePacket(const uint8_t *payload, size_t len) {
   Audio.enqueueOpus(payload, len);
 }
