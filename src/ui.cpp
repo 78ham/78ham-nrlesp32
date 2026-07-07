@@ -1,6 +1,7 @@
 #include "ui.h"
 
 #include <Arduino_GFX_Library.h>
+#include <qrcode.h>
 #include "pins.h"
 #include "state.h"
 
@@ -27,14 +28,27 @@ static String wifiQrPayload(const String &ssid, const String &password) {
 }
 
 static void drawQrCode(const String &payload, int x, int y, int maxSize) {
-  (void)payload;
-  s_gfx->drawRect(x - 4, y - 4, maxSize + 8, maxSize + 8, COLOR_WHITE);
-  s_gfx->setTextColor(COLOR_WHITE, COLOR_BLACK);
-  s_gfx->setTextSize(1);
-  s_gfx->setCursor(x + 16, y + maxSize / 2 - 8);
-  s_gfx->print("WiFi QR");
-  s_gfx->setCursor(x + 10, y + maxSize / 2 + 8);
-  s_gfx->print("pending lib");
+  static constexpr uint8_t kQrVersion = 4;
+  static uint8_t qrcodeData[256];
+  QRCode qrcode;
+  qrcode_initText(&qrcode, qrcodeData, kQrVersion, ECC_LOW, payload.c_str());
+
+  int scale = maxSize / qrcode.size;
+  if (scale < 1) {
+    scale = 1;
+  }
+  int qrSize = qrcode.size * scale;
+  int offsetX = x + (maxSize - qrSize) / 2;
+  int offsetY = y + (maxSize - qrSize) / 2;
+
+  s_gfx->fillRect(x - 4, y - 4, maxSize + 8, maxSize + 8, COLOR_WHITE);
+  for (uint8_t row = 0; row < qrcode.size; ++row) {
+    for (uint8_t col = 0; col < qrcode.size; ++col) {
+      if (qrcode_getModule(&qrcode, col, row)) {
+        s_gfx->fillRect(offsetX + col * scale, offsetY + row * scale, scale, scale, COLOR_BLACK);
+      }
+    }
+  }
 }
 
 bool UiService::begin(AppConfig *config) {
