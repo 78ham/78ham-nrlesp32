@@ -1,6 +1,5 @@
 #include "nrl_api.h"
 
-#include <cJSON.h>
 #include <esp_http_client.h>
 #include <esp_log.h>
 #include <freertos/FreeRTOS.h>
@@ -62,6 +61,58 @@ static bool http_post_json(const char *host, const char *path, const char *token
     return true;
 }
 
+static const char *find_json_key(const char *json, const char *key)
+{
+    char pattern[40];
+    snprintf(pattern, sizeof(pattern), "\"%s\"", key);
+    const char *p = strstr(json, pattern);
+    if (p == nullptr) {
+        return nullptr;
+    }
+    p = strchr(p + strlen(pattern), ':');
+    if (p == nullptr) {
+        return nullptr;
+    }
+    return p + 1;
+}
+
+static bool json_get_string(const char *json, const char *key, char *out, size_t out_len)
+{
+    const char *p = find_json_key(json, key);
+    if (p == nullptr || out_len == 0) {
+        return false;
+    }
+    while (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n') {
+        ++p;
+    }
+    if (*p != '\"') {
+        return false;
+    }
+    ++p;
+    size_t used = 0;
+    while (*p != '\0' && *p != '\"' && used + 1 < out_len) {
+        if (*p == '\\' && p[1] != '\0') {
+            ++p;
+        }
+        out[used++] = *p++;
+    }
+    out[used] = '\0';
+    return used > 0;
+}
+
+static bool json_get_int_from_object(const char *object, const char *key, int *out)
+{
+    const char *p = find_json_key(object, key);
+    if (p == nullptr) {
+        return false;
+    }
+    while (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n') {
+        ++p;
+    }
+    *out = atoi(p);
+    return true;
+}
+
 static bool login(const AppConfig *config, char *token, size_t token_len)
 {
     token[0] = '\0';
@@ -76,41 +127,42 @@ static bool login(const AppConfig *config, char *token, size_t token_len)
     if (!http_post_json(server->host, "/user/login", nullptr, body, response, sizeof(response))) {
         return false;
     }
-    cJSON *root = cJSON_Parse(response);
-    if (root == nullptr) {
-        return false;
-    }
-    cJSON *data = cJSON_GetObjectItem(root, "data");
-    cJSON *tok = data != nullptr ? cJSON_GetObjectItem(data, "token") : nullptr;
-    bool ok = cJSON_IsString(tok) && tok->valuestring[0] != '\0';
-    if (ok) {
-        strlcpy(token, tok->valuestring, token_len);
-    }
-    cJSON_Delete(root);
+    bool ok = json_get_string(response, "token", token, token_len);
     ESP_LOGI(TAG, "login %s", ok ? "ok" : "failed");
     return ok;
 }
 
-static void update_channels_from_groups(AppConfig *config, cJSON *groups)
+static void update_channels_from_groups(AppConfig *config, const char *json)
 {
-    if (!cJSON_IsArray(groups)) {
-        return;
-    }
     ServerConfig *server = config_active_server(config);
     size_t count = 0;
-    cJSON *group = nullptr;
-    cJSON_ArrayForEach(group, groups) {
+    const char *p = json;
+    while ((p = strchr(p, '{')) != nullptr) {
         if (count >= kMaxChannels) {
             break;
         }
-        cJSON *id = cJSON_GetObjectItem(group, "id");
-        cJSON *name = cJSON_GetObjectItem(group, "name");
-        if (!cJSON_IsNumber(id) || !cJSON_IsString(name)) {
+        const char *end = strchr(p, '}');
+        if (end == nullptr) {
+            break;
+        }
+        char object[512];
+        size_t len = end - p + 1;
+        if (len >= sizeof(object)) {
+            p = end + 1;
+            continue;
+        }
+        memcpy(object, p, len);
+        object[len] = '\0';
+        int id = 0;
+        char name[sizeof(server->available_channels[0].name)];
+        if (!json_get_int_from_object(object, "id", &id) || id <= 0 || !json_get_string(object, "name", name, sizeof(name))) {
+            p = end + 1;
             continue;
         }
         ChannelConfig *channel = &server->available_channels[count++];
-        strlcpy(channel->name, name->valuestring, sizeof(channel->name));
-        channel->group_id = static_cast<uint32_t>(id->valuedouble);
+        strlcpy(channel->name, name, sizeof(channel->name));
+        channel->group_id = static_cast<uint32_t>(id);
+        p = end + 1;
     }
     if (count > 0) {
         server->available_channel_count = count;
@@ -135,10 +187,7 @@ static void sync_task(void *arg)
     const ServerConfig *server = &config->servers[config->current_server];
     static char response[8192];
     if (http_post_json(server->host, "/group/list/mini", token, "{}", response, sizeof(response))) {
-        cJSON *root = cJSON_Parse(response);
-        cJSON *data = root != nullptr ? cJSON_GetObjectItem(root, "data") : nullptr;
-        update_channels_from_groups(config, data);
-        cJSON_Delete(root);
+        update_channels_from_groups(config, response);
     }
     vTaskDelete(nullptr);
 }
