@@ -104,6 +104,12 @@ void NetworkService::stop() {
   State.udpReady = false;
 }
 
+void NetworkService::resetUdp() {
+  udp_.stop();
+  serverResolved_ = false;
+  State.udpReady = false;
+}
+
 bool NetworkService::sendPacket(uint8_t type, const uint8_t *payload, size_t len) {
   if (!config_ || !ensureUdp()) {
     return false;

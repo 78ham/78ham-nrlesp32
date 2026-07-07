@@ -17,6 +17,7 @@ static void enterConfigPortal();
 static bool startRuntime();
 static void handleKey(KeyId key, bool pressed, bool longPress);
 static void switchChannel(int delta);
+static void switchServer(int delta);
 static void handleVoicePacket(const uint8_t *payload, size_t len);
 
 void setup() {
@@ -113,6 +114,15 @@ static void handleKey(KeyId key, bool pressed, bool longPress) {
 
   if (key == KeyId::Power && longPress) {
     enterConfigPortal();
+    return;
+  }
+
+  if (key == KeyId::ChannelUp && longPress) {
+    switchServer(-1);
+    return;
+  }
+  if (key == KeyId::ChannelDown && longPress) {
+    switchServer(1);
     return;
   }
 

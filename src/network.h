@@ -16,6 +16,7 @@ public:
   bool sendVoiceOpus(const uint8_t *payload, size_t len);
   bool sendChannelSwitch(uint32_t groupId);
   void setVoiceHandler(VoicePacketHandler handler);
+  void resetUdp();
 
 private:
   bool ensureUdp();
