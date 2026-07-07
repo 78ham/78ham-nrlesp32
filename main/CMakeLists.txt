@@ -7,12 +7,14 @@ idf_component_register(
         "network.cpp"
         "nrl21.cpp"
         "audio.cpp"
+        "web_config.cpp"
     INCLUDE_DIRS "."
     REQUIRES
         driver
         esp_event
         esp_lcd
         esp_netif
+        esp_http_server
         esp_wifi
         nvs_flash
 )
