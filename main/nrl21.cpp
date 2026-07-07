@@ -20,6 +20,11 @@ size_t nrl_build_packet(uint8_t type, const uint8_t *payload, size_t payload_len
     uint8_t mac[6] = {};
     esp_read_mac(mac, ESP_MAC_WIFI_STA);
     out[6] = mac[3]; out[7] = mac[4]; out[8] = mac[5];
+    const ServerConfig *server = &config->servers[0];
+    if (config->server_count > 0 && config->current_server < config->server_count) {
+        server = &config->servers[config->current_server];
+    }
+    memcpy(out + 9, server->password, strnlen(server->password, 11));
     out[20] = type;
     out[21] = 1;
     put_u16(out + 22, ++s_count);

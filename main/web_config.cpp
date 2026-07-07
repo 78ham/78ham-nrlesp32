@@ -142,16 +142,88 @@ static void append_input(char *page, size_t page_len, size_t *used, const char *
     }
 }
 
+static void append_wifi_scan(char *page, size_t page_len, size_t *used)
+{
+    append(page, page_len, used, "<fieldset><legend>Nearby WiFi</legend><small>Tap a network to fill WiFi SSID.</small>");
+    wifi_scan_config_t scan_cfg = {};
+    esp_err_t err = esp_wifi_scan_start(&scan_cfg, true);
+    if (err != ESP_OK) {
+        append(page, page_len, used, "<p>Scan failed</p></fieldset>");
+        return;
+    }
+    uint16_t count = 0;
+    esp_wifi_scan_get_ap_num(&count);
+    if (count > 12) {
+        count = 12;
+    }
+    wifi_ap_record_t aps[12];
+    memset(aps, 0, sizeof(aps));
+    esp_wifi_scan_get_ap_records(&count, aps);
+    for (uint16_t i = 0; i < count; ++i) {
+        append(page, page_len, used, "<label><input type='radio' name='wifi_pick' onclick=\"document.querySelector('[name=wifi_ssid]').value=this.value\" value='");
+        append_escaped(page, page_len, used, reinterpret_cast<const char *>(aps[i].ssid));
+        append(page, page_len, used, "'>");
+        append_escaped(page, page_len, used, reinterpret_cast<const char *>(aps[i].ssid));
+        char rssi[24];
+        snprintf(rssi, sizeof(rssi), " (%d dBm)", aps[i].rssi);
+        append(page, page_len, used, rssi);
+        append(page, page_len, used, "</label>");
+    }
+    if (count == 0) {
+        append(page, page_len, used, "<p>No networks found</p>");
+    }
+    append(page, page_len, used, "</fieldset>");
+}
+
+static bool channel_selected(const ServerConfig *server, uint32_t group_id)
+{
+    for (size_t i = 0; i < server->channel_count && i < kMaxChannels; ++i) {
+        if (server->channels[i].group_id == group_id) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static void append_room_picker(char *page, size_t page_len, size_t *used, const ServerConfig *server)
+{
+    if (server->available_channel_count == 0) {
+        return;
+    }
+    append(page, page_len, used, "<fieldset><legend>Rooms From Server</legend><small>Rooms are fetched after WiFi and NRLLink login succeed.</small>");
+    for (size_t i = 0; i < server->available_channel_count && i < kMaxChannels; ++i) {
+        const ChannelConfig *room = &server->available_channels[i];
+        char field[24];
+        snprintf(field, sizeof(field), "room_%u", static_cast<unsigned>(i));
+        append(page, page_len, used, "<label><input type='checkbox' name='");
+        append(page, page_len, used, field);
+        append(page, page_len, used, "' value='1' ");
+        if (channel_selected(server, room->group_id)) {
+            append(page, page_len, used, "checked ");
+        }
+        append(page, page_len, used, ">");
+        append_escaped(page, page_len, used, room->name);
+        char id[24];
+        snprintf(id, sizeof(id), " #%lu", static_cast<unsigned long>(room->group_id));
+        append(page, page_len, used, id);
+        append(page, page_len, used, "</label>");
+    }
+    append(page, page_len, used, "</fieldset>");
+}
+
 static esp_err_t root_handler(httpd_req_t *req)
 {
-    static char page[7000];
+    static char page[9000];
     size_t used = 0;
     ServerConfig *server = config_active_server(s_config);
     append(page, sizeof(page), &used, "<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>");
     append(page, sizeof(page), &used, "<title>78HAM ESP32</title><style>body{font-family:sans-serif;margin:16px;max-width:520px}input,button{width:100%;box-sizing:border-box;margin:5px 0 12px;padding:10px}button{background:#111;color:#fff;border:0}fieldset{border:1px solid #ccc;margin:12px 0}small{color:#666}</style></head><body>");
     append(page, sizeof(page), &used, "<h3>78HAM ESP32</h3><form method='post' action='/save'>");
+    append_wifi_scan(page, sizeof(page), &used);
     append_input(page, sizeof(page), &used, "WiFi SSID", "wifi_ssid", s_config->wifi_ssid);
     append_input(page, sizeof(page), &used, "WiFi Password", "wifi_password", s_config->wifi_password, "type='password'");
+    append_input(page, sizeof(page), &used, "NRLLink User", "user_name", s_config->user_name, "maxlength='31'");
+    append_input(page, sizeof(page), &used, "NRLLink Password", "user_password", s_config->user_password, "type='password' maxlength='63'");
     append_input(page, sizeof(page), &used, "Callsign", "callsign", s_config->callsign, "maxlength='6'");
     char number[16];
     snprintf(number, sizeof(number), "%u", s_config->callsign_ssid);
@@ -159,9 +231,12 @@ static esp_err_t root_handler(httpd_req_t *req)
     append(page, sizeof(page), &used, "<fieldset><legend>Server</legend>");
     append_input(page, sizeof(page), &used, "Name", "server_name", server->name, "maxlength='15'");
     append_input(page, sizeof(page), &used, "Host", "server_host", server->host, "maxlength='63'");
+    append_input(page, sizeof(page), &used, "Device Password", "server_password", server->password, "type='password' maxlength='11'");
     snprintf(number, sizeof(number), "%u", server->port);
     append_input(page, sizeof(page), &used, "Port", "server_port", number, "type='number'");
-    append(page, sizeof(page), &used, "</fieldset><fieldset><legend>Displayed Channels</legend><small>Only channels listed here appear on the device.</small>");
+    append(page, sizeof(page), &used, "</fieldset>");
+    append_room_picker(page, sizeof(page), &used, server);
+    append(page, sizeof(page), &used, "<fieldset><legend>Displayed Channels</legend><small>Only channels listed here appear on the device.</small>");
     for (size_t i = 0; i < 8; ++i) {
         char field[24];
         char label[32];
@@ -204,6 +279,8 @@ static esp_err_t save_handler(httpd_req_t *req)
 
     form_get(body, "wifi_ssid", s_config->wifi_ssid, sizeof(s_config->wifi_ssid));
     form_get(body, "wifi_password", s_config->wifi_password, sizeof(s_config->wifi_password));
+    form_get(body, "user_name", s_config->user_name, sizeof(s_config->user_name));
+    form_get(body, "user_password", s_config->user_password, sizeof(s_config->user_password));
     form_get(body, "callsign", s_config->callsign, sizeof(s_config->callsign));
     uint32_t ssid = form_get_u32(body, "callsign_ssid", s_config->callsign_ssid);
     if (ssid < 1) {
@@ -219,25 +296,39 @@ static esp_err_t save_handler(httpd_req_t *req)
     ServerConfig *server = &s_config->servers[0];
     form_get(body, "server_name", server->name, sizeof(server->name));
     form_get(body, "server_host", server->host, sizeof(server->host));
+    form_get(body, "server_password", server->password, sizeof(server->password));
     uint32_t port = form_get_u32(body, "server_port", kNrlDefaultPort);
     server->port = port > 0 && port <= 65535 ? static_cast<uint16_t>(port) : kNrlDefaultPort;
     server->local_port = kNrlDefaultPort;
     server->channel_count = 0;
 
-    for (size_t i = 0; i < 8 && server->channel_count < kMaxChannels; ++i) {
-        char name_key[16];
-        char group_key[16];
-        char name[sizeof(server->channels[0].name)];
-        snprintf(name_key, sizeof(name_key), "ch_name_%u", static_cast<unsigned>(i));
-        snprintf(group_key, sizeof(group_key), "ch_group_%u", static_cast<unsigned>(i));
-        form_get(body, name_key, name, sizeof(name));
-        uint32_t group_id = form_get_u32(body, group_key, 0);
-        if (name[0] == '\0' || group_id == 0) {
-            continue;
+    if (server->available_channel_count > 0) {
+        for (size_t i = 0; i < server->available_channel_count && i < kMaxChannels; ++i) {
+            char field[24];
+            char selected[4];
+            snprintf(field, sizeof(field), "room_%u", static_cast<unsigned>(i));
+            if (form_get(body, field, selected, sizeof(selected))) {
+                server->channels[server->channel_count++] = server->available_channels[i];
+            }
         }
-        ChannelConfig *channel = &server->channels[server->channel_count++];
-        strlcpy(channel->name, name, sizeof(channel->name));
-        channel->group_id = group_id;
+    }
+
+    if (server->channel_count == 0) {
+        for (size_t i = 0; i < 8 && server->channel_count < kMaxChannels; ++i) {
+            char name_key[16];
+            char group_key[16];
+            char name[sizeof(server->channels[0].name)];
+            snprintf(name_key, sizeof(name_key), "ch_name_%u", static_cast<unsigned>(i));
+            snprintf(group_key, sizeof(group_key), "ch_group_%u", static_cast<unsigned>(i));
+            form_get(body, name_key, name, sizeof(name));
+            uint32_t group_id = form_get_u32(body, group_key, 0);
+            if (name[0] == '\0' || group_id == 0) {
+                continue;
+            }
+            ChannelConfig *channel = &server->channels[server->channel_count++];
+            strlcpy(channel->name, name, sizeof(channel->name));
+            channel->group_id = group_id;
+        }
     }
     if (server->channel_count == 0) {
         server->channel_count = 1;
@@ -265,7 +356,7 @@ void web_config_start(AppConfig *config)
     ap.ap.channel = 1;
     ap.ap.max_connection = 4;
     ap.ap.authmode = strlen(config->ap_password) >= 8 ? WIFI_AUTH_WPA_WPA2_PSK : WIFI_AUTH_OPEN;
-    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
+    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_APSTA));
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &ap));
     ESP_ERROR_CHECK(esp_wifi_start());
 

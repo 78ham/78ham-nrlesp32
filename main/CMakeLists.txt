@@ -6,6 +6,7 @@ idf_component_register(
         "keys.cpp"
         "network.cpp"
         "nrl21.cpp"
+        "nrl_api.cpp"
         "audio.cpp"
         "web_config.cpp"
     INCLUDE_DIRS "."
@@ -15,7 +16,9 @@ idf_component_register(
         esp_lcd
         esp_netif
         esp_http_server
+        esp_http_client
         esp_wifi
+        json
         nvs_flash
 )
 

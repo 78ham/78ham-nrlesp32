@@ -23,7 +23,12 @@ static void set_default(AppConfig *config)
     strcpy(server.host, "101.133.166.204");
     server.port = kNrlDefaultPort;
     server.local_port = kNrlDefaultPort;
+    server.available_channel_count = 2;
     server.channel_count = 2;
+    strcpy(server.available_channels[0].name, "Local");
+    server.available_channels[0].group_id = 1;
+    strcpy(server.available_channels[1].name, "999");
+    server.available_channels[1].group_id = 999;
     strcpy(server.channels[0].name, "Local");
     server.channels[0].group_id = 1;
     strcpy(server.channels[1].name, "999");

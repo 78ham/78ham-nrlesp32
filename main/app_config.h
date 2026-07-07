@@ -17,8 +17,11 @@ struct ChannelConfig {
 struct ServerConfig {
     char name[16];
     char host[64];
+    char password[64];
     uint16_t port;
     uint16_t local_port;
+    size_t available_channel_count;
+    ChannelConfig available_channels[kMaxChannels];
     size_t channel_count;
     ChannelConfig channels[kMaxChannels];
 };
@@ -26,6 +29,8 @@ struct ServerConfig {
 struct AppConfig {
     char wifi_ssid[33];
     char wifi_password[65];
+    char user_name[32];
+    char user_password[64];
     char ap_ssid[32];
     char ap_password[16];
     char callsign[7];

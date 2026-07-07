@@ -1,6 +1,7 @@
 #include "network.h"
 
 #include "nrl21.h"
+#include "nrl_api.h"
 #include <esp_event.h>
 #include <esp_log.h>
 #include <esp_wifi.h>
@@ -15,6 +16,7 @@ static const char *TAG = "NET";
 static AppConfig *s_config = nullptr;
 static int s_sock = -1;
 static sockaddr_in s_server = {};
+static VoicePacketHandler s_voice_handler = nullptr;
 
 static bool resolve_server(const char *host, sockaddr_in *out)
 {
@@ -102,6 +104,9 @@ static void network_task(void *)
             NrlPacketView view = {};
             if (nrl_parse_packet(rx, got, &view) && view.type == kNrlTypeVoiceOpus) {
                 ESP_LOGI(TAG, "opus rx from=%s-%u bytes=%u", view.callsign, view.ssid, static_cast<unsigned>(view.payload_len));
+                if (s_voice_handler != nullptr) {
+                    s_voice_handler(view.payload, view.payload_len);
+                }
             }
         }
         vTaskDelay(pdMS_TO_TICKS(5));
@@ -117,6 +122,7 @@ static void wifi_event(void *, esp_event_base_t event_base, int32_t event_id, vo
         esp_wifi_connect();
     } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
         ESP_LOGI(TAG, "wifi got ip");
+        nrl_api_sync_groups_async(s_config);
         xTaskCreatePinnedToCore(network_task, "nrl_net", 8192, nullptr, 5, nullptr, 0);
     }
 }
@@ -147,4 +153,22 @@ void network_send_channel_switch(uint32_t group_id)
     if (len > 0) {
         sendto(s_sock, packet, len, 0, reinterpret_cast<sockaddr *>(&s_server), sizeof(s_server));
     }
+}
+
+bool network_send_voice_opus(const uint8_t *payload, size_t len)
+{
+    if (payload == nullptr || len == 0 || len > kNrlMaxPayload || s_sock < 0) {
+        return false;
+    }
+    uint8_t packet[kNrlMaxPacket];
+    size_t packet_len = nrl_build_packet(kNrlTypeVoiceOpus, payload, len, s_config, packet, sizeof(packet));
+    if (packet_len == 0) {
+        return false;
+    }
+    return sendto(s_sock, packet, packet_len, 0, reinterpret_cast<sockaddr *>(&s_server), sizeof(s_server)) == static_cast<int>(packet_len);
+}
+
+void network_set_voice_handler(VoicePacketHandler handler)
+{
+    s_voice_handler = handler;
 }

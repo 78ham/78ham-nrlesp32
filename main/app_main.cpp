@@ -89,6 +89,7 @@ extern "C" void app_main(void)
 
     keys_init();
     keys_set_handler(handle_key);
+    network_set_voice_handler(audio_enqueue_opus);
     display_init();
     audio_init();
 
