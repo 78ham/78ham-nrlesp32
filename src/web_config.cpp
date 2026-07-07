@@ -17,6 +17,17 @@ bool WebConfigService::begin(AppConfig *config, const String &apSsid, const Stri
   WiFi.softAP(apSsid.c_str(), apPassword.c_str());
   s_server.on("/", [this]() { handleRoot(); });
   s_server.on("/save", HTTP_POST, [this]() { handleSave(); });
+  s_server.on("/save_server", HTTP_POST, [this]() {
+    ServerConfig &server = activeServer(*config_);
+    config_->serverCount = 1;
+    config_->currentServer = 0;
+    setStringField(server.name, sizeof(server.name), s_server.arg("server_name"));
+    setStringField(server.host, sizeof(server.host), s_server.arg("server_host"));
+    server.port = s_server.arg("server_port").toInt() > 0 ? s_server.arg("server_port").toInt() : kNrlDefaultPort;
+    server.localPort = kNrlDefaultPort;
+    Storage.save(*config_);
+    s_server.send(200, "text/html", "<html><body><h3>Server Saved</h3><p>Hotspot is still running. Return to the setup page to fill channels.</p><p><a href='/'>Back</a></p></body></html>");
+  });
   s_server.begin();
   return true;
 }
@@ -45,17 +56,13 @@ String WebConfigService::renderPage() const {
   html += config_->wifi.ssid;
   html += F("'><label>WiFi Password</label><input name='wifi_password' type='password' value='");
   html += config_->wifi.password;
-  html += F("'><label>Callsign</label><input name='callsign' maxlength='6' value='");
-  html += config_->device.callsign;
-  html += F("'><label>Callsign SSID</label><input name='callsign_ssid' type='number' min='1' max='99' value='");
-  html += config_->device.ssid;
   html += F("'><fieldset><legend>Server</legend><label>Name</label><input name='server_name' maxlength='15' value='");
   html += server.name;
   html += F("'><label>Host</label><input name='server_host' maxlength='63' value='");
   html += server.host;
   html += F("'><label>Port</label><input name='server_port' type='number' value='");
   html += server.port;
-  html += F("'></fieldset><fieldset><legend>Displayed Channels</legend><small>Only channels listed here appear on the device.</small>");
+  html += F("'><button type='submit' formaction='/save_server'>Save Server</button></fieldset><fieldset><legend>Displayed Channels</legend><small>Only channels listed here appear on the device.</small>");
   for (size_t i = 0; i < 8; ++i) {
     html += F("<label>Channel ");
     html += String(i + 1);
@@ -90,8 +97,6 @@ void WebConfigService::handleSave() {
   }
   setStringField(config_->wifi.ssid, sizeof(config_->wifi.ssid), s_server.arg("wifi_ssid"));
   setStringField(config_->wifi.password, sizeof(config_->wifi.password), s_server.arg("wifi_password"));
-  setStringField(config_->device.callsign, sizeof(config_->device.callsign), s_server.arg("callsign"));
-  config_->device.ssid = constrain(s_server.arg("callsign_ssid").toInt(), 1, 99);
 
   config_->serverCount = 1;
   config_->currentServer = 0;

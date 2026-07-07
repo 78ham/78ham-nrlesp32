@@ -29,6 +29,7 @@ struct ServerConfig {
 struct AppConfig {
     char wifi_ssid[33];
     char wifi_password[65];
+    char api_host[64];
     char user_name[32];
     char user_password[64];
     char ap_ssid[32];

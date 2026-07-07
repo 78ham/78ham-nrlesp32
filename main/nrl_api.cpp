@@ -1,5 +1,6 @@
 #include "nrl_api.h"
 
+#include <esp_crt_bundle.h>
 #include <esp_http_client.h>
 #include <esp_log.h>
 #include <freertos/FreeRTOS.h>
@@ -33,7 +34,7 @@ static esp_err_t http_event(esp_http_client_event_t *event)
 static bool http_post_json(const char *host, const char *path, const char *token, const char *body, char *out, int out_len)
 {
     char url[160];
-    snprintf(url, sizeof(url), "http://%s%s", host, path);
+    snprintf(url, sizeof(url), "https://%s%s", host, path);
     HttpResponse response = {out, 0, out_len};
     out[0] = '\0';
     esp_http_client_config_t cfg = {};
@@ -41,6 +42,7 @@ static bool http_post_json(const char *host, const char *path, const char *token
     cfg.timeout_ms = 8000;
     cfg.event_handler = http_event;
     cfg.user_data = &response;
+    cfg.crt_bundle_attach = esp_crt_bundle_attach;
     esp_http_client_handle_t client = esp_http_client_init(&cfg);
     if (client == nullptr) {
         return false;
@@ -120,16 +122,33 @@ static bool login(const AppConfig *config, char *token, size_t token_len)
         ESP_LOGI(TAG, "skip group sync: NRLLink user/password not configured");
         return false;
     }
-    const ServerConfig *server = &config->servers[config->current_server];
     char body[160];
     snprintf(body, sizeof(body), "{\"username\":\"%s\",\"password\":\"%s\"}", config->user_name, config->user_password);
     static char response[2048];
-    if (!http_post_json(server->host, "/user/login", nullptr, body, response, sizeof(response))) {
+    const char *host = config->api_host[0] != '\0' ? config->api_host : "m.nrlptt.com";
+    if (!http_post_json(host, "/user/login", nullptr, body, response, sizeof(response))) {
         return false;
     }
     bool ok = json_get_string(response, "token", token, token_len);
     ESP_LOGI(TAG, "login %s", ok ? "ok" : "failed");
     return ok;
+}
+
+static bool sync_user_info(AppConfig *config, const char *token)
+{
+    static char response[4096];
+    const char *host = config->api_host[0] != '\0' ? config->api_host : "m.nrlptt.com";
+    if (!http_post_json(host, "/user/info", token, "{}", response, sizeof(response))) {
+        return false;
+    }
+    char callsign[sizeof(config->callsign)];
+    if (!json_get_string(response, "callsign", callsign, sizeof(callsign))) {
+        ESP_LOGW(TAG, "user info has no callsign");
+        return false;
+    }
+    strlcpy(config->callsign, callsign, sizeof(config->callsign));
+    ESP_LOGI(TAG, "synced callsign=%s from user info", config->callsign);
+    return true;
 }
 
 static void update_channels_from_groups(AppConfig *config, const char *json)
@@ -184,9 +203,10 @@ static void sync_task(void *arg)
         vTaskDelete(nullptr);
         return;
     }
-    const ServerConfig *server = &config->servers[config->current_server];
+    sync_user_info(config, token);
     static char response[8192];
-    if (http_post_json(server->host, "/group/list/mini", token, "{}", response, sizeof(response))) {
+    const char *host = config->api_host[0] != '\0' ? config->api_host : "m.nrlptt.com";
+    if (http_post_json(host, "/group/list/mini", token, "{}", response, sizeof(response))) {
         update_channels_from_groups(config, response);
     }
     vTaskDelete(nullptr);

@@ -12,6 +12,7 @@ static constexpr const char *kNs = "cfg";
 static void set_default(AppConfig *config)
 {
     memset(config, 0, sizeof(*config));
+    strcpy(config->api_host, "m.nrlptt.com");
     strcpy(config->callsign, "NOCALL");
     config->callsign_ssid = 1;
     config->volume = 70;

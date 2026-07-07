@@ -10,6 +10,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "nrl_api.h"
+
 static const char *TAG = "WEB";
 static AppConfig *s_config = nullptr;
 static httpd_handle_t s_httpd = nullptr;
@@ -142,6 +144,57 @@ static void append_input(char *page, size_t page_len, size_t *used, const char *
     }
 }
 
+static void read_request_body(httpd_req_t *req, char *body, size_t body_len)
+{
+    int remaining = req->content_len;
+    int offset = 0;
+    while (remaining > 0 && offset + 1 < static_cast<int>(body_len)) {
+        int got = httpd_req_recv(req, body + offset, body_len - offset - 1);
+        if (got <= 0) {
+            break;
+        }
+        offset += got;
+        remaining -= got;
+    }
+    body[offset] = '\0';
+}
+
+static void save_server_fields(const char *body)
+{
+    form_get(body, "api_host", s_config->api_host, sizeof(s_config->api_host));
+    form_get(body, "user_name", s_config->user_name, sizeof(s_config->user_name));
+    form_get(body, "user_password", s_config->user_password, sizeof(s_config->user_password));
+
+    s_config->server_count = 1;
+    s_config->current_server = 0;
+    ServerConfig *server = &s_config->servers[0];
+    form_get(body, "server_name", server->name, sizeof(server->name));
+    form_get(body, "server_host", server->host, sizeof(server->host));
+    uint32_t port = form_get_u32(body, "server_port", kNrlDefaultPort);
+    server->port = port > 0 && port <= 65535 ? static_cast<uint16_t>(port) : kNrlDefaultPort;
+    server->local_port = kNrlDefaultPort;
+}
+
+static void sync_rooms_task(void *)
+{
+    vTaskDelay(pdMS_TO_TICKS(6000));
+    nrl_api_sync_groups_async(s_config);
+    vTaskDelete(nullptr);
+}
+
+static void connect_sta_for_room_sync()
+{
+    if (s_config->wifi_ssid[0] == '\0') {
+        return;
+    }
+    wifi_config_t sta = {};
+    strlcpy(reinterpret_cast<char *>(sta.sta.ssid), s_config->wifi_ssid, sizeof(sta.sta.ssid));
+    strlcpy(reinterpret_cast<char *>(sta.sta.password), s_config->wifi_password, sizeof(sta.sta.password));
+    esp_wifi_set_config(WIFI_IF_STA, &sta);
+    esp_wifi_connect();
+    xTaskCreate(sync_rooms_task, "room_sync", 4096, nullptr, 3, nullptr);
+}
+
 static void append_wifi_scan(char *page, size_t page_len, size_t *used)
 {
     append(page, page_len, used, "<fieldset><legend>Nearby WiFi</legend><small>Tap a network to fill WiFi SSID.</small>");
@@ -222,19 +275,18 @@ static esp_err_t root_handler(httpd_req_t *req)
     append_wifi_scan(page, sizeof(page), &used);
     append_input(page, sizeof(page), &used, "WiFi SSID", "wifi_ssid", s_config->wifi_ssid);
     append_input(page, sizeof(page), &used, "WiFi Password", "wifi_password", s_config->wifi_password, "type='password'");
+    append(page, sizeof(page), &used, "<fieldset><legend>Server Account</legend>");
+    append_input(page, sizeof(page), &used, "API Host", "api_host", s_config->api_host, "maxlength='63'");
     append_input(page, sizeof(page), &used, "NRLLink User", "user_name", s_config->user_name, "maxlength='31'");
     append_input(page, sizeof(page), &used, "NRLLink Password", "user_password", s_config->user_password, "type='password' maxlength='63'");
-    append_input(page, sizeof(page), &used, "Callsign", "callsign", s_config->callsign, "maxlength='6'");
+    append(page, sizeof(page), &used, "</fieldset>");
     char number[16];
-    snprintf(number, sizeof(number), "%u", s_config->callsign_ssid);
-    append_input(page, sizeof(page), &used, "Callsign SSID", "callsign_ssid", number, "type='number' min='1' max='99'");
     append(page, sizeof(page), &used, "<fieldset><legend>Server</legend>");
     append_input(page, sizeof(page), &used, "Name", "server_name", server->name, "maxlength='15'");
     append_input(page, sizeof(page), &used, "Host", "server_host", server->host, "maxlength='63'");
-    append_input(page, sizeof(page), &used, "Device Password", "server_password", server->password, "type='password' maxlength='11'");
     snprintf(number, sizeof(number), "%u", server->port);
     append_input(page, sizeof(page), &used, "Port", "server_port", number, "type='number'");
-    append(page, sizeof(page), &used, "</fieldset>");
+    append(page, sizeof(page), &used, "<button type='submit' formaction='/save_server'>Save Server</button></fieldset>");
     append_room_picker(page, sizeof(page), &used, server);
     append(page, sizeof(page), &used, "<fieldset><legend>Displayed Channels</legend><small>Only channels listed here appear on the device.</small>");
     for (size_t i = 0; i < 8; ++i) {
@@ -252,7 +304,7 @@ static esp_err_t root_handler(httpd_req_t *req)
         }
         append_input(page, sizeof(page), &used, label, field, number, "type='number'");
     }
-    append(page, sizeof(page), &used, "</fieldset><button type='submit'>Save</button></form></body></html>");
+    append(page, sizeof(page), &used, "</fieldset><button type='submit'>Save WiFi And Rooms</button></form></body></html>");
     return httpd_resp_send(req, page, HTTPD_RESP_USE_STRLEN);
 }
 
@@ -265,41 +317,16 @@ static void restart_task(void *)
 static esp_err_t save_handler(httpd_req_t *req)
 {
     static char body[4096];
-    int remaining = req->content_len;
-    int offset = 0;
-    while (remaining > 0 && offset + 1 < static_cast<int>(sizeof(body))) {
-        int got = httpd_req_recv(req, body + offset, sizeof(body) - offset - 1);
-        if (got <= 0) {
-            return ESP_FAIL;
-        }
-        offset += got;
-        remaining -= got;
-    }
-    body[offset] = '\0';
+    read_request_body(req, body, sizeof(body));
 
     form_get(body, "wifi_ssid", s_config->wifi_ssid, sizeof(s_config->wifi_ssid));
     form_get(body, "wifi_password", s_config->wifi_password, sizeof(s_config->wifi_password));
-    form_get(body, "user_name", s_config->user_name, sizeof(s_config->user_name));
-    form_get(body, "user_password", s_config->user_password, sizeof(s_config->user_password));
-    form_get(body, "callsign", s_config->callsign, sizeof(s_config->callsign));
-    uint32_t ssid = form_get_u32(body, "callsign_ssid", s_config->callsign_ssid);
-    if (ssid < 1) {
-        ssid = 1;
-    } else if (ssid > 99) {
-        ssid = 99;
-    }
-    s_config->callsign_ssid = static_cast<uint8_t>(ssid);
+    save_server_fields(body);
 
     s_config->server_count = 1;
     s_config->current_server = 0;
     s_config->current_channel = 0;
     ServerConfig *server = &s_config->servers[0];
-    form_get(body, "server_name", server->name, sizeof(server->name));
-    form_get(body, "server_host", server->host, sizeof(server->host));
-    form_get(body, "server_password", server->password, sizeof(server->password));
-    uint32_t port = form_get_u32(body, "server_port", kNrlDefaultPort);
-    server->port = port > 0 && port <= 65535 ? static_cast<uint16_t>(port) : kNrlDefaultPort;
-    server->local_port = kNrlDefaultPort;
     server->channel_count = 0;
 
     if (server->available_channel_count > 0) {
@@ -342,6 +369,19 @@ static esp_err_t save_handler(httpd_req_t *req)
     return ESP_OK;
 }
 
+static esp_err_t save_server_handler(httpd_req_t *req)
+{
+    static char body[4096];
+    read_request_body(req, body, sizeof(body));
+    form_get(body, "wifi_ssid", s_config->wifi_ssid, sizeof(s_config->wifi_ssid));
+    form_get(body, "wifi_password", s_config->wifi_password, sizeof(s_config->wifi_password));
+    save_server_fields(body);
+    config_save(s_config);
+    connect_sta_for_room_sync();
+    httpd_resp_sendstr(req, "<html><body><h3>Server Saved</h3><p>Hotspot is still running. Wait a few seconds, then return to choose rooms.</p><p><a href='/'>Back</a></p></body></html>");
+    return ESP_OK;
+}
+
 void web_config_start(AppConfig *config)
 {
     s_config = config;
@@ -371,7 +411,12 @@ void web_config_start(AppConfig *config)
     save.uri = "/save";
     save.method = HTTP_POST;
     save.handler = save_handler;
+    httpd_uri_t save_server = {};
+    save_server.uri = "/save_server";
+    save_server.method = HTTP_POST;
+    save_server.handler = save_server_handler;
     ESP_ERROR_CHECK(httpd_register_uri_handler(s_httpd, &root));
     ESP_ERROR_CHECK(httpd_register_uri_handler(s_httpd, &save));
+    ESP_ERROR_CHECK(httpd_register_uri_handler(s_httpd, &save_server));
     ESP_LOGI(TAG, "config portal started ssid=%s pass=%s url=http://192.168.4.1/", config->ap_ssid, config->ap_password);
 }
